@@ -1,0 +1,15 @@
+{
+  "name": "google-workspace-mcp",
+  "version": "1.0.0",
+  "description": "Google Sheets/Docs/Slides/Forms 편집과 Drive 파일·댓글·리비전·권한·공유드라이브 관리를 제공하는 MCP 서버",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "node scripts/smoke.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
+  }
+}

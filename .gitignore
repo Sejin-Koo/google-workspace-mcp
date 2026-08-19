@@ -1,0 +1,3 @@
+node_modules/
+.vercel
+scripts/.env.local.json
