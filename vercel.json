@@ -2,6 +2,9 @@
   "functions": {
     "api/mcp.js": {
       "maxDuration": 60
+    },
+    "api/raw.js": {
+      "maxDuration": 60
     }
   }
 }
