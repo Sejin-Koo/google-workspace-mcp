@@ -1,72 +1,48 @@
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { buildServer } from "../lib/server.js";
+import { checkGateKey, gateUnauthorizedMessage } from "../lib/gate.js";
 
 export const config = {
   api: { bodyParser: true },
 };
 
-// ─── 접근 게이트 ─────────────────────────────────────────────────────────────
-// 엔드포인트 주소만 알면 누구나 호출할 수 있는 상태를 막기 위해, 호출자는 URL
-// 쿼리스트링으로 발급받은 게이트키를 전달한다:  https://<도메인>/api/mcp?k=<발급키>
-//   MCP_GATE_KEYS : 허용 키 목록(쉼표 구분). **비어 있으면 게이트 비활성**(모두 통과).
-//   MCP_GATE_MODE : "enforce"면 키가 없거나 목록에 없을 때 401 차단.
-//                   그 밖(기본 "observe")이면 통과시키되 로그만 남긴다.
-// 로그에는 키 전문 대신 발급 대상 식별자(plk_<대상>_… 의 <대상>)만 남긴다.
-// 상세 운영 절차는 sys-mcp-gatekey 스킬 참조.
-const GATE_KEYS = (process.env.MCP_GATE_KEYS || "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-const GATE_MODE = (process.env.MCP_GATE_MODE || "observe").trim().toLowerCase();
+// 접근 게이트는 lib/gate.js가 담당한다(api/raw.js와 같은 코드를 쓴다).
 
-function gateKeyLabel(k) {
-  if (!k) return "(none)";
-  const m = String(k).match(/^plk_([A-Za-z0-9]+)_/);
-  return m ? m[1] : `${String(k).slice(0, 8)}…`;
+/**
+ * 이 요청이 도달한 주소(스킴+호스트)를 돌려준다.
+ * drive_file의 download_link가 조각 다운로드 URL을 만들 때 기준 도메인으로 쓴다 —
+ * 호출자가 실제로 쓴 주소를 그대로 쓰므로 배포 전용 URL·고정 별칭 어느 쪽이든 맞는다.
+ */
+function requestBaseUrl(req) {
+  const host = req.headers?.["x-forwarded-host"] || req.headers?.host;
+  if (!host) return undefined;
+  const proto = req.headers?.["x-forwarded-proto"] || (host.startsWith("localhost") ? "http" : "https");
+  return `${String(proto).split(",")[0].trim()}://${String(host).split(",")[0].trim()}`;
 }
 
-/** 통과하면 true. 차단하면 401 응답을 보내고 false를 돌려준다. */
-function gateCheck(req, res) {
-  let k = (req.query && req.query.k) || null;
-  if (!k) {
-    try {
-      k = new URL(req.url, "http://localhost").searchParams.get("k");
-    } catch (e) {
-      k = null;
-    }
-  }
-  const allowed = GATE_KEYS.length === 0 || (!!k && GATE_KEYS.includes(k));
-  console.log(
-    `[gate] mode=${GATE_MODE} method=${req.method} caller=${gateKeyLabel(k)} allowed=${allowed}`
-  );
-  if (!allowed && GATE_MODE === "enforce") {
+export default async function handler(req, res) {
+  const gate = checkGateKey(req);
+  if (gate.blocked) {
     res.statusCode = 401;
     res.setHeader("Content-Type", "application/json");
     res.end(
       JSON.stringify({
         jsonrpc: "2.0",
         id: null,
-        error: {
-          code: -32001,
-          message:
-            "접근 권한이 없습니다. 이 서버는 발급받은 게이트키가 포함된 주소(…/api/mcp?k=<발급키>)로만 호출할 수 있습니다.",
-        },
+        error: { code: -32001, message: gateUnauthorizedMessage("/api/mcp") },
       })
     );
-    return false;
+    return;
   }
-  return true;
-}
-
-export default async function handler(req, res) {
-  if (!gateCheck(req, res)) return;
 
   if (req.method !== "POST") {
     res.status(405).json({ jsonrpc: "2.0", error: { code: -32000, message: "POST만 지원합니다" }, id: null });
     return;
   }
 
-  const server = buildServer();
+  // 게이트키와 호출 주소를 서버 컨텍스트로 넘긴다 — download_link가 돌려주는 조각 URL에
+  // 이번 호출에 쓰인 게이트키를 그대로 실어야 호출자가 바로 받을 수 있다.
+  const server = buildServer({ gateKey: gate.key, baseUrl: requestBaseUrl(req) });
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 
   res.on("close", () => {
