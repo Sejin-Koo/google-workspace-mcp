@@ -1,5 +1,5 @@
 // 순수 함수·조립 로직만 검증하는 오프라인 스모크테스트 (Google 호출 없음)
-import { guessMimeType, uploadAllowedFolderId } from "../lib/drive.js";
+import { guessMimeType, uploadAllowedFolderId, downloadAllowedFolderIds, downloadAllowedFolderId } from "../lib/drive.js";
 
 let pass = 0, fail = 0;
 function eq(label, got, want) {
@@ -36,6 +36,28 @@ eq("미설정 → null", uploadAllowedFolderId(), null);
 process.env.UPLOAD_ALLOWED_FOLDER_ID = "  FOLDER_X  ";
 eq("공백 제거", uploadAllowedFolderId(), "FOLDER_X");
 delete process.env.UPLOAD_ALLOWED_FOLDER_ID;
+
+console.log("[2-1] 다운로드 허용 폴더 — 쉼표로 여러 개");
+delete process.env.DOWNLOAD_ALLOWED_FOLDER_ID;
+const defs = downloadAllowedFolderIds();
+ok("미설정 → 코드 기본값 2개 이상", Array.isArray(defs) && defs.length >= 2);
+ok("기본값에 글꼴 폴더 포함", defs.includes("1PFDwUUOO1nJW8irOQlMaz5ZtqdQiZMMg"));
+ok("기본값에 Claude 폴더 포함", defs.includes("1fe1HDtcq4ohyK9KG-0FxWAwMptjcnsIV"));
+process.env.DOWNLOAD_ALLOWED_FOLDER_ID = "AAA";
+eq("단일 값(기존 설정 하위호환)", downloadAllowedFolderIds().join("|"), "AAA");
+eq("단수 함수는 첫 값", downloadAllowedFolderId(), "AAA");
+process.env.DOWNLOAD_ALLOWED_FOLDER_ID = "AAA,BBB , CCC";
+eq("쉼표+공백 혼용", downloadAllowedFolderIds().join("|"), "AAA|BBB|CCC");
+process.env.DOWNLOAD_ALLOWED_FOLDER_ID = "  AAA   BBB  ";
+eq("공백 구분", downloadAllowedFolderIds().join("|"), "AAA|BBB");
+process.env.DOWNLOAD_ALLOWED_FOLDER_ID = "  , , ";
+ok("구분자만 있으면 기본값으로 되돌림", downloadAllowedFolderIds().length >= 2);
+delete process.env.DOWNLOAD_ALLOWED_FOLDER_ID;
+// 허용 판정: parents 중 하나라도 목록에 있으면 통과
+const allowed = ["F1", "F2"];
+ok("parents 하나가 일치하면 통과", ["X", "F2"].some((p) => allowed.includes(p)));
+ok("어느 것도 없으면 거부", !["X", "Y"].some((p) => allowed.includes(p)));
+ok("parents가 비면 거부", ![].some((p) => allowed.includes(p)));
 
 console.log("[3] base64 왕복 — 이진 바이트가 보존되는가");
 // 실제 docx의 시그니처(PK\x03\x04)를 포함한 바이트열

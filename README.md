@@ -53,7 +53,7 @@ GET /api/raw?k=<게이트키>&f=<fileId>&s=<시작바이트>&e=<끝바이트>
 
 | 제한 | 내용 |
 |---|---|
-| **허용 폴더** | 내려받기는 `DOWNLOAD_ALLOWED_FOLDER_ID` 폴더 **바로 아래의 파일**로만 제한된다. 요청한 파일의 `parents`에 이 폴더가 없으면 거부(`download_link`는 오류, `/api/raw`는 403). 검사는 주소를 발급할 때와 바이트를 내보낼 때 **양쪽에서 각각** 한다 — 발급된 주소의 `f=`만 바꿔치기해 다른 파일을 받을 수 없다. |
+| **허용 폴더** | 내려받기는 `DOWNLOAD_ALLOWED_FOLDER_ID`에 적힌 폴더들 **바로 아래의 파일**로만 제한된다(쉼표·공백으로 여러 개를 넣을 수 있고, **하위 폴더는 포함되지 않는다**). 현재 허용 목록은 `download_link` 응답의 `allowedFolders`로 확인한다. 요청한 파일의 `parents`에 이 폴더가 없으면 거부(`download_link`는 오류, `/api/raw`는 403). 검사는 주소를 발급할 때와 바이트를 내보낼 때 **양쪽에서 각각** 한다 — 발급된 주소의 `f=`만 바꿔치기해 다른 파일을 받을 수 없다. |
 | **게이트키** | `/api/raw`에도 `/api/mcp`와 동일한 게이트키 검사(`MCP_GATE_KEYS`/`MCP_GATE_MODE`)가 걸린다. 차단 모드에서 키가 없거나 목록에 없으면 401. `download_link`가 돌려주는 조각 주소에는 그 호출에 쓰인 게이트키가 그대로 들어간다. |
 
 게이트 검사 코드는 `lib/gate.js` 한 곳에 있고 `api/mcp.js`와 `api/raw.js`가 함께 쓴다.
@@ -108,7 +108,7 @@ MIME 타입은 `mime_type`을 주지 않으면 파일명 확장자로 추론한�
 | `GOOGLE_REFRESH_TOKEN` | `https://www.googleapis.com/auth/drive` 스코프를 포함한 refresh token |
 | `MCP_GATE_KEYS` | 접근 게이트 허용 키 목록(쉼표 구분). 비어 있으면 게이트 비활성 |
 | `MCP_GATE_MODE` | `enforce`면 키 없는 호출을 401로 차단 |
-| `DOWNLOAD_ALLOWED_FOLDER_ID` | 내려받기를 허용할 Drive 폴더 ID. 기본값 `1PFDwUUOO1nJW8irOQlMaz5ZtqdQiZMMg`(내 드라이브 `글꼴` 폴더) |
+| `DOWNLOAD_ALLOWED_FOLDER_ID` | 내려받기를 허용할 Drive 폴더 ID. **쉼표·공백으로 여러 개** 지정 가능(예: `<글꼴폴더ID>,<Claude폴더ID>`). 미설정 시 코드 기본값은 내 드라이브 `글꼴`·`Claude` 두 폴더. 값 하나만 넣던 기존 설정도 그대로 동작한다 |
 | `UPLOAD_ALLOWED_FOLDER_ID` | 새 파일을 만들 수 있는 Drive 폴더 ID. **미설정이 기본이며 그때는 제한이 없다** |
 | `RAW_BASE_URL` | `download_link`가 만드는 조각 주소의 기준 도메인(예: `https://<배포도메인>`). 생략하면 호출에 쓰인 주소, 그다음 Vercel 시스템 변수를 쓴다 |
 
